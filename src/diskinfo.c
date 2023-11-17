@@ -4,33 +4,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-
-/**
- * Includes struct stat and fstat()
-
- * struct stat {
-	dev_t st_dev;
-	ino_t st_ino;
-	mode_t st_mode;
-	nlink_t st_nlink;
-	uid_t st_uid;
-	gid_t st_gid;
-	dev_t st_rdev;
-	off_t st_size;
-	time_t st_atime;
-	time_t st_mtime;
-	time_t st_ctime;
-	blksize_t st_blksize;
-	blkcnt_t st_blocks;
-	mode_t st_attr;
-}; 
- * 
- * 
- * 
-*/
-
-
 #include <sys/types.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -49,28 +22,6 @@ typedef struct __attribute__((__packed__))superblock{
 
 } superblock_t;
 
-//Date and time of an entry into a directory
-typedef struct __attribute__((__packed__)) dir_entry_timedate {
-	uint16_t year;
-	uint8_t month;
-	uint8_t day;
-	uint8_t hour;
-	uint8_t minute;
-	uint8_t second;
-} dir_entry_timedate_t;
-
-//Directory entry struct
-typedef struct __attribute__((__packed__)) dir_entry{
-	uint8_t status;
-	uint32_t starting_block;
-	uint32_t block_count;
-	uint32_t size;
-	dir_entry_timedate_t create_time;
-	dir_entry_timedate_t modify_time;
-	uint8_t filename[31];
-	uint8_t unused[6];
-
-}dir_entry_t;
 
 void print_superblock(int file_descriptor);
 void print_fat_info(int block_size, int start_of_fat, int blocks_in_fat, void *mmaped_file);
@@ -82,15 +33,19 @@ void print_fat_info(int block_size, int start_of_fat, int blocks_in_fat, void *m
  * 
 */
 void print_superblock(int file_descriptor){
-	struct stat buf;
+	struct stat* buf;
 	superblock_t* the_super_block;
 	int file_cursor;
 
-
-	int fstat_return = fstat(file_descriptor, &buf);
+	//Load file stats so we can get the size of file for memory mapping purposes.
+	int fstat_return = fstat(file_descriptor, buf);
+	if (fstat_return < 0){
+		perror("fstat()");
+		exit(-1);
+	}
 	
 	//Memory map the image file and create a 
-	void* start_of_file = mmap(NULL, buf.st_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
+	void* start_of_file = mmap(NULL, buf->st_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
 
 	//Load info from mmap into the struct
 
@@ -128,6 +83,7 @@ void print_superblock(int file_descriptor){
 		print_fat_info(block_size,start_of_fat, blocks_in_fat, start_of_file);
 
 
+
 }
 /** 
  * Helper function that prints out the FAT table info (free, allocated, and reserved blocks)
@@ -137,7 +93,7 @@ void print_fat_info(int block_size, int start_of_fat, int blocks_in_fat, void *m
 	int num_free_blocks = 0;
 	int num_reserved_blocks = 0;
 	int num_allocated_blocks = 0;
-	
+
 	int cursor = start_of_fat*block_size;
 	int end_of_fat = block_size*(start_of_fat+blocks_in_fat);
 
@@ -174,11 +130,13 @@ int main(int argc, char* argv[]){
 
 	//Handle arguments
 	if (argc == 1){
-        printf("Include the name of the file after the command as an argument\n");
+        printf("Include the name of the img file after the command as an argument\n");
         exit(-1);
     }
     if (argc != 2){
-        printf("The argument provided is invalid!\n");
+        printf(
+			"The argument provided is invalid! Try ./disklit [name_of_image.img]\n"
+		);
         exit(-1);
     }
 

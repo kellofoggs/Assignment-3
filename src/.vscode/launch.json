@@ -1,0 +1,12 @@
+{
+    
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "diskinfo",
+            "program": "/home/kell/Desktop/CSC360/Assignment-3/src/diskinfo.c",
+            "args": ["diskinfo.c","test.img"],
+    
+    }
+    ]
+}
