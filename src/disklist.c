@@ -45,6 +45,34 @@ typedef struct __attribute__((__packed__)) dir_entry{
 
 }dir_entry_t;
 
+void print_directory_or_file(){
+	int status_byte = 0;
+	char output;
+
+	if (status_byte == 3){
+		output = 'F';
+	}
+	if (status_byte== 5){
+		output = 'D';
+	}
+
+	printf("%c",output);
+
+
+}
+void print_time(void* start_of_file, int cursor){
+	int hours = 0;
+	int minutes = 0;
+	int seconds = 0;
+
+	memcpy(&hours, start_of_file+cursor+17, 1);
+	memcpy(&minutes, start_of_file+cursor+18, 1);
+	memcpy(&seconds, start_of_file+cursor+19, 1);
+
+
+	printf("%02d:%02d:%02d\n",hours, minutes, seconds);
+
+}
 void print_directories(int file_descriptor ){
 	struct stat* buf;
 	superblock_t* the_super_block;
@@ -64,13 +92,22 @@ void print_directories(int file_descriptor ){
 	int root_directory_start = htonl(superblock->root_dir_start_block);
 	int root_directory_blocks = htonl(superblock->root_dir_block_count);
 
-	int block_size = superblock->block_size;
+	int block_size = htons(superblock->block_size);
 
 	//Setup the cursor at the bit that signifies start of root
 	int cursor = block_size*root_directory_start;
 	int root_end = block_size * (root_directory_start + root_directory_blocks);
+	printf("%d\n",root_directory_start);
 	
 	//Go to desired directory
+	while (cursor < root_end){
+
+		print_time(start_of_file, cursor);
+
+
+		//Move to next entry
+		cursor = cursor+64;
+	}
 
 
 	//Print the directory out
@@ -86,23 +123,30 @@ int main(int argc, char* argv[]){
 		"directory\n");
         exit(-1);
     }
-    if (argc != 3){
+ if (argc != 2){
         printf("Invalid argument(s) provided! Try ./diskist [name_of_image.img] /[path_of_directory]\n"
 		);
         exit(-1);
     }
 
+   /* if (argc != 3){
+        printf("Invalid argument(s) provided! Try ./diskist [name_of_image.img] /[path_of_directory]\n"
+		);
+        exit(-1);
+    }*/
+
 	//Open the file with read access only
-	int file_descriptor = open(argv[2], 0);
+	int file_descriptor = open(argv[1], 0);
 
 
 	//When the file opening caused an error
 	if (file_descriptor < 0 ){
 		printf("The file could not be opened. The file may not exist or you may not have access to it\n");
+		perror("open()");
 		exit(-1);
 	}
 
-	//print_superblock(file_descriptor);
+	print_directories(file_descriptor);
 	close(file_descriptor);
 
 	return 0;
