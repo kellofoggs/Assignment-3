@@ -47,15 +47,26 @@ typedef struct __attribute__((__packed__)) dir_entry{
 void print_name_and_size(void *start_of_file, int cursor);
 void get_all_fields(void *start_of_file, int cursor, char** output_string);
 
-
+/**
+ * Function that uses packed directory entry struct to get info about the entry
+ * Be
+*/
 void get_all_fields(void *start_of_file, int cursor, char** output_string){
 	int status_byte = 0;
 	char file_or_dir_char;
-	char name[31];
+	char* name;
 	int size;
 
-	//Get status of whether entry is file/directory
-	memcpy(&status_byte, start_of_file+cursor, 1);
+	dir_entry_t* directory_entry = (dir_entry_t*)(start_of_file+cursor);
+
+
+	/**
+	 * Get status of whether entry is file/directory
+	 * Because we only have 1 byte the endianess does not matter, we don't convert with hton
+	*/
+	
+	status_byte = directory_entry->status;
+	//memcpy(&status_byte, start_of_file+cursor, 1);
 
 	//Print status
 	if (status_byte == 3){
@@ -66,96 +77,49 @@ void get_all_fields(void *start_of_file, int cursor, char** output_string){
 	}
 	
 	//Get size
-	memcpy(&size, start_of_file+cursor+9, 4);
-	size = htonl(size);
+	//memcpy(&size, start_of_file+cursor+9, 4);
+	size = htonl(directory_entry->size);
 
 	//get name
-	strcpy(name, start_of_file+cursor+27);	
 
-	//get_date
-	int year = 0;
-	int month = 0;
-	int day = 0;
-
-	memcpy(&year, start_of_file+cursor+13, 2);
-	year = htons(year);
-
-	//Because we only have 1 byte the endianess does not matter
-
-	memcpy(&month, start_of_file+cursor+15, 1);
-	memcpy(&day, start_of_file+cursor+16, 1);
-
-
-
-
-	//get_time
-	int hours = 0;
-	int minutes = 0;
-	int seconds = 0;
-
-
-	//Because we only have 1 byte the endianess does not matter
-	memcpy(&hours, start_of_file+cursor+17, 1);
-	memcpy(&minutes, start_of_file+cursor+18, 1);
-	memcpy(&seconds, start_of_file+cursor+19, 1);
-
+	name = directory_entry->filename;
+	//get creation date
 	
+	dir_entry_timedate_t creation_time = directory_entry->create_time;
+	int year = htons(creation_time.year);
+
+	//Because we only have 1 byte the endianess does not matter, we don't convert with hton
+
+	int month = creation_time.month;
+	int day = creation_time.day;
+
+
+
+	//Get creation time
+	//Because we only have 1 byte the endianess does not matter
+
+	int hours = creation_time.hour;
+	int minutes = creation_time.minute;
+	int seconds = creation_time.second;
 
 
 	//If we have a non-empty entry print its info
 	if (status_byte != 0){
-		printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n", file_or_dir_char, size, name, year,month,day, hours, minutes, seconds);
+		//printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n", file_or_dir_char, size, name, year,month,day, hours, minutes, seconds);
+		printf("%d\n",cursor);
 	}
+			//printf("%s\n", name);
+
 
 	
 
 
 
 }
-void print_directory_or_file(void* start_of_file, int cursor){
-	int status_byte = 0;
-	char output;
-	
-	memcpy(&status_byte, start_of_file+cursor, 1);
 
-	if (status_byte == 3){
-		output = 'F';
-	}
-	else if (status_byte== 5){
-		output = 'D';
-	}
-
-	printf("%c	",output);
-
-
-}
-void print_time(void* start_of_file, int cursor){
-	int hours = 0;
-	int minutes = 0;
-	int seconds = 0;
-
-	memcpy(&hours, start_of_file+cursor+17, 1);
-	memcpy(&minutes, start_of_file+cursor+18, 1);
-	memcpy(&seconds, start_of_file+cursor+19, 1);
-
-
-	printf("%02d:%02d:%02d\n",hours, minutes, seconds);
-
-}
-
-void print_name_and_size(void *start_of_file, int cursor){
-
-	char name[31];
-	int size;
-	strcpy(name, start_of_file+cursor+27);
-	memcpy(&size, start_of_file+cursor+9, 4);
-	size = htonl(size);
-	printf("%d	%s	", size,name);
-
-}
-void print_directories(int file_descriptor ){
+void print_directories(int file_descriptor, char* directory_path ){
 	struct stat* buf;
-	superblock_t* the_super_block;
+	superblock_t* superblock;
 	int file_cursor = 0;
 	
 	//Use fstat as we need the size of the img
@@ -166,7 +130,7 @@ void print_directories(int file_descriptor ){
 	void *start_of_file =  mmap(NULL, buf->st_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
 
 	//Create superblock packed struct
-	superblock_t* superblock = (superblock_t*)start_of_file;
+	superblock = (superblock_t*)start_of_file;
 
 	//Setup for root directory print in big-endian
 	int root_directory_start = htonl(superblock->root_dir_start_block);
@@ -179,13 +143,20 @@ void print_directories(int file_descriptor ){
 	int root_end = block_size * (root_directory_start + root_directory_blocks);
 	//printf("%d\n",root_directory_start);
 	
-	//Go to desired directory
-	while (cursor < root_end){
+	//Find directory
+	
+	//Go through desired directory
+	dir_entry_t* directory_entry;
+	
+	//find_directory(directory_path, superblock, &cursor, &start_of_file);
 
+	while (cursor < root_end){
+		//printf("%d\n", directory_entry->size);
 		/*print_directory_or_file(start_of_file, cursor);
 		print_name_and_size(start_of_file, cursor);
 		print_time(start_of_file, cursor);
 		*/
+
 		get_all_fields(start_of_file, cursor, NULL);
 		//Move to next entry
 		cursor = cursor+64;
@@ -193,6 +164,30 @@ void print_directories(int file_descriptor ){
 
 
 	//Print the directory out
+
+
+}
+
+void find_directory(char* directory_path, superblock_t* superblock,int* cursor, int* root_end){
+
+	//If the directory path is the root, then do nothing as cursor starts at the root
+	if (strcmp("/", directory_path) == 0){
+		return;
+	}
+
+	char* dir_to_look_for = strtok(directory_path, "/");
+	int temp_cursor = *cursor;
+	while (temp_cursor < *root_end){
+		//look through all entries till we find the name we're looking for
+		
+
+		temp_cursor = temp_cursor + 64;
+	}
+
+
+
+
+	//separate path into file/directory names
 
 
 }
@@ -228,7 +223,7 @@ int main(int argc, char* argv[]){
 		exit(-1);
 	}
 
-	print_directories(file_descriptor);
+	print_directories(file_descriptor, argv[2]);
 	close(file_descriptor);
 
 	return 0;
