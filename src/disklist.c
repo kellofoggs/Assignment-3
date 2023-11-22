@@ -18,8 +18,6 @@ typedef struct __attribute__((__packed__))superblock{
 	uint32_t fat_block_count;
 	uint32_t root_dir_start_block;
 	uint32_t root_dir_block_count;
-
-
 } superblock_t;
 
 //Date and time of an entry into a directory
@@ -46,6 +44,7 @@ typedef struct __attribute__((__packed__)) dir_entry{
 }dir_entry_t;
 void print_name_and_size(void *start_of_file, int cursor);
 void get_all_fields(void *start_of_file, int cursor, char** output_string);
+void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end);
 
 /**
  * Function that uses packed directory entry struct to get info about the entry
@@ -105,8 +104,8 @@ void get_all_fields(void *start_of_file, int cursor, char** output_string){
 
 	//If we have a non-empty entry print its info
 	if (status_byte != 0){
-		//printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n", file_or_dir_char, size, name, year,month,day, hours, minutes, seconds);
-		printf("%d\n",cursor);
+		printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n", file_or_dir_char, size, name, year,month,day, hours, minutes, seconds);
+		//printf("%d\n",cursor);
 	}
 			//printf("%s\n", name);
 
@@ -144,7 +143,7 @@ void print_directories(int file_descriptor, char* directory_path ){
 	//printf("%d\n",root_directory_start);
 	
 	//Find directory
-	
+	find_directory(directory_path, superblock, start_of_file, &cursor, &root_end);
 	//Go through desired directory
 	dir_entry_t* directory_entry;
 	
@@ -168,20 +167,30 @@ void print_directories(int file_descriptor, char* directory_path ){
 
 }
 
-void find_directory(char* directory_path, superblock_t* superblock,int* cursor, int* root_end){
+void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end){
+
 
 	//If the directory path is the root, then do nothing as cursor starts at the root
 	if (strcmp("/", directory_path) == 0){
+		printf("Looking for root dir");
 		return;
 	}
 
 	char* dir_to_look_for = strtok(directory_path, "/");
-	int temp_cursor = *cursor;
-	while (temp_cursor < *root_end){
+	int temp_cursor = (*cursor);
+	while (temp_cursor < *root_end & dir_to_look_for != NULL){
 		//look through all entries till we find the name we're looking for
-		
+		write(1, "shiit\n", 6);
+		dir_entry_t* entry = (dir_entry_t*)(start_of_file + temp_cursor);
+		if (strcmp(entry->filename, dir_to_look_for) == 0){
+			//write(1, "found dir",9);
+			printf("Found directory %s @%d\n", entry->filename, temp_cursor);
+			printf("Directory starts @ %d and has %d blocks\n", htonl(entry->starting_block), htonl(entry->block_count));
+			dir_to_look_for = strtok(NULL, "/");
 
+		}
 		temp_cursor = temp_cursor + 64;
+
 	}
 
 
@@ -200,7 +209,7 @@ int main(int argc, char* argv[]){
 		"directory\n");
         exit(-1);
     }
- if (argc != 2){
+ if (argc != 3){
         printf("Invalid argument(s) provided! Try ./diskist [name_of_image.img] /[path_of_directory]\n"
 		);
         exit(-1);
