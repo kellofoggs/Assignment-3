@@ -43,14 +43,22 @@ typedef struct __attribute__((__packed__)) dir_entry{
 	uint8_t unused[6];
 
 }dir_entry_t;
-void print_name_and_size(void *start_of_file, int cursor);
-void get_all_fields(void *start_of_file, int cursor, char** output_string);
+
+//Function declarations
+void get_all_fields(void *start_of_file, int cursor);
+void print_directories(int file_descriptor, char* directory_path );
+
 void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size);
+
 /**
- * Function that uses packed directory entry struct to get info about the entry
- * Be
+ * Function that uses packed directory entry struct to print info about the entry in the directory
+ * @args:
+ * 	start_of_file: pointer to memory mapping of fat
+ *  cursor: current place in the directory
+ * @return:
+ * 	returns nothing
 */
-void get_all_fields(void *start_of_file, int cursor, char** output_string){
+void get_all_fields(void *start_of_file, int cursor){
 	int status_byte = 0;
 	char file_or_dir_char;
 	char* name;
@@ -65,9 +73,8 @@ void get_all_fields(void *start_of_file, int cursor, char** output_string){
 	*/
 	
 	status_byte = directory_entry->status;
-	//memcpy(&status_byte, start_of_file+cursor, 1);
 
-	//Print status
+	//Set status char
 	if (status_byte == 3){
 		file_or_dir_char = 'F';
 	}
@@ -95,7 +102,7 @@ void get_all_fields(void *start_of_file, int cursor, char** output_string){
 
 
 	//Get creation time
-	//Because we only have 1 byte the endianess does not matter
+	//Because we only have 1 byte the endianess does not matter, we don't convert with hton
 
 	int hours = creation_time.hour;
 	int minutes = creation_time.minute;
@@ -105,18 +112,21 @@ void get_all_fields(void *start_of_file, int cursor, char** output_string){
 	//If we have a non-empty entry print its info
 	if (status_byte != 0){
 		printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n", file_or_dir_char, size, name, year,month,day, hours, minutes, seconds);
-		//printf("%d\n",cursor);
 	}
-			//printf("%s\n", name);
-
-
-	
-
-
-
 }
 
+/**
+ * Function that prints out the desired directory
+ * @args: 
+ * 	file_descriptor: file descriptor returned from open system command
+ * 	directory_path: path to desired directory
+ * 
+ * @returns:
+ * 	nothing is returned
+ * 
+*/
 void print_directories(int file_descriptor, char* directory_path ){
+	
 	struct stat* buf;
 	superblock_t* superblock;
 	int file_cursor = 0;
@@ -140,32 +150,21 @@ void print_directories(int file_descriptor, char* directory_path ){
 	//Setup the cursor at the bit that signifies start of root
 	int cursor = block_size*root_directory_start;
 	int root_end = block_size * (root_directory_start + root_directory_blocks);
-	//printf("%d\n",root_directory_start);
 	
-	//Find directory
+	//Find desired directory which sets the cursor and root_end
 	find_directory(directory_path, superblock, start_of_file, &cursor, &root_end, block_size);
-	//Go through desired directory
-	dir_entry_t* directory_entry;
 	
-	//find_directory(directory_path, superblock, &cursor, &start_of_file);
+	
+	//Print the directory entries out
 
 	while (cursor < root_end){
-		//printf("%d\n", directory_entry->size);
-		/*print_directory_or_file(start_of_file, cursor);
-		print_name_and_size(start_of_file, cursor);
-		print_time(start_of_file, cursor);
-		*/
-
-		get_all_fields(start_of_file, cursor, NULL);
+		get_all_fields(start_of_file, cursor);
+	
 		//Move to next entry
 		cursor = cursor+64;
 	}
-
-
-	//Print the directory out
-
-
 }
+
 /**
  * Finds the directory starting from the root block traversing deeper, stops if any part of the path is not findable
  * 
@@ -231,7 +230,6 @@ void find_directory(char* directory_path, superblock_t* superblock, void* start_
 	*cursor = temp_cursor;
 	*root_end = temp_root_end;
 
-	//separate path into file/directory names
 
 
 }
@@ -250,11 +248,6 @@ int main(int argc, char* argv[]){
         exit(-1);
     }
 
-   /* if (argc != 3){
-        printf("Invalid argument(s) provided! Try ./diskist [name_of_image.img] /[path_of_directory]\n"
-		);
-        exit(-1);
-    }*/
 
 	//Open the file with read access only
 	int file_descriptor = open(argv[1], 0);

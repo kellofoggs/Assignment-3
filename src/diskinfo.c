@@ -6,8 +6,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <stdint.h>
 #include <netinet/in.h>
 //Struct for superblock
 typedef struct __attribute__((__packed__))superblock{
@@ -87,7 +85,12 @@ void print_superblock(int file_descriptor){
 }
 /** 
  * Helper function that prints out the FAT table info (free, allocated, and reserved blocks)
- * 
+ * @args:
+ * 	block_size: the size of blocks in the file system, typically 512
+ * 	start_of_fat: the start of the fat table in blocks
+ * 	blocks_in_fat: the number of blocks that the FAT takes up
+ * @return:
+ * 	the function returns nothing
 */
 void print_fat_info(int block_size, int start_of_fat, int blocks_in_fat, void *mmaped_file){
 	int num_free_blocks = 0;
@@ -109,7 +112,7 @@ void print_fat_info(int block_size, int start_of_fat, int blocks_in_fat, void *m
 			num_free_blocks++;
 		}else if(current_bytes == 1){
 			num_reserved_blocks++;
-		}else if (current_bytes > 1){
+		}else {
 			num_allocated_blocks++;
 		}
 		cursor = cursor + 4;
