@@ -1,13 +1,14 @@
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <netinet/in.h>
 //Struct for superblock
 typedef struct __attribute__((__packed__))superblock{
@@ -44,8 +45,7 @@ typedef struct __attribute__((__packed__)) dir_entry{
 }dir_entry_t;
 void print_name_and_size(void *start_of_file, int cursor);
 void get_all_fields(void *start_of_file, int cursor, char** output_string);
-void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end);
-
+void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size);
 /**
  * Function that uses packed directory entry struct to get info about the entry
  * Be
@@ -143,7 +143,7 @@ void print_directories(int file_descriptor, char* directory_path ){
 	//printf("%d\n",root_directory_start);
 	
 	//Find directory
-	find_directory(directory_path, superblock, start_of_file, &cursor, &root_end);
+	find_directory(directory_path, superblock, start_of_file, &cursor, &root_end, block_size);
 	//Go through desired directory
 	dir_entry_t* directory_entry;
 	
@@ -166,35 +166,70 @@ void print_directories(int file_descriptor, char* directory_path ){
 
 
 }
+/**
+ * Finds the directory starting from the root block traversing deeper, stops if any part of the path is not findable
+ * 
+ * @args:
+ * 	directory_path: the path that leads to a directory that is to be printed 
+ * 	superblock: a packed struct that holds info on the superblock
+ *  start_of_file: a pointer to the memory mapping (used to create packed struct for directory entries)
+ * 	cursor:	pointer to value that tracks what part of the file we're looking at
+ * 	root_end: pointer to value that tracks the end of the current directory entry (originally the end of the root directory)
+ * 	block_size: the size of a block in the file system, typically will be 512
+ * 
+ * 
+ * @returns: nothing
+ * 
+*/
+void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size){
 
-void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end){
+
+	bool directory_found = false;
+	char full_path[2^32];
+	strcpy(full_path, directory_path);
+	/**
+	 *	If the directory path is the root, then do nothing as cursor starts at the root and root_end is 
+	 *  already setup to be the end of the root 
+	 */
 
 
-	//If the directory path is the root, then do nothing as cursor starts at the root
 	if (strcmp("/", directory_path) == 0){
-		printf("Looking for root dir");
 		return;
 	}
 
 	char* dir_to_look_for = strtok(directory_path, "/");
-	int temp_cursor = (*cursor);
-	while (temp_cursor < *root_end & dir_to_look_for != NULL){
-		//look through all entries till we find the name we're looking for
-		write(1, "shiit\n", 6);
+	int temp_cursor = *cursor;
+	int temp_root_end = *root_end;
+	//look through all entries in current root till we find the name we're looking for
+	while (temp_cursor < temp_root_end && dir_to_look_for != NULL){
+
 		dir_entry_t* entry = (dir_entry_t*)(start_of_file + temp_cursor);
+
+		//When we find the matching name in the relevant section of path
 		if (strcmp(entry->filename, dir_to_look_for) == 0){
-			//write(1, "found dir",9);
-			printf("Found directory %s @%d\n", entry->filename, temp_cursor);
-			printf("Directory starts @ %d and has %d blocks\n", htonl(entry->starting_block), htonl(entry->block_count));
+
+			//Get the next section of the path if any and move cursor to it
 			dir_to_look_for = strtok(NULL, "/");
+			temp_cursor = htonl(entry->starting_block) *block_size;
+			temp_root_end = (htonl(entry->block_count) +htonl(entry->starting_block))*512;
+
+			//If no next section of the path then we've found the desired directory
+			if (dir_to_look_for == NULL){
+				directory_found = true;
+			}
+			continue;
 
 		}
+		//Look at the next directory entry
 		temp_cursor = temp_cursor + 64;
 
 	}
-
-
-
+	if (!directory_found){
+		printf("Directory with path %s not found\n", full_path);
+		exit(-1);
+	}
+	*cursor = temp_cursor;
+	*root_end = temp_root_end;
 
 	//separate path into file/directory names
 
