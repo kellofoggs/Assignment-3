@@ -7,19 +7,7 @@
 #include <sys/types.h>
 #include <stdlib.h>
 #include <netinet/in.h>
-//Struct for superblock
-typedef struct __attribute__((__packed__))superblock{
-	uint8_t fs_id [8];
-	uint16_t block_size;
-	uint32_t file_system_block_count;
-	uint32_t fat_start_block;
-	uint32_t fat_block_count;
-	uint32_t root_dir_start_block;
-	uint32_t root_dir_block_count;
-
-
-} superblock_t;
-
+#include "diskutil.h"
 
 void print_superblock(int file_descriptor);
 void print_fat_info(int block_size, int start_of_fat, int blocks_in_fat, void *mmaped_file);
@@ -62,13 +50,13 @@ void print_superblock(int file_descriptor){
 
 	
 	printf(
-		"Super block information:\n"
-		"Block size: %d\n"
-		"Block count: %d\n"
-		"FAT starts: %d\n"
-		"FAT blocks: %d\n"
-		"Root directory start: %d\n"
-		"Root directory blocks:%d \n\n",
+		"Super block information\n"
+		"Block size: %u\n"
+		"Block count: %u\n"
+		"FAT starts: %u\n"
+		"FAT blocks: %u\n"
+		"Root directory start: %u\n"
+		"Root directory blocks:%u \n\n",
 
 		
 		block_size,
@@ -78,7 +66,8 @@ void print_superblock(int file_descriptor){
 		root_directory_start,
 		root_directory_blocks
 	);
-		print_fat_info(block_size,start_of_fat, blocks_in_fat, start_of_file);
+	
+	print_fat_info(block_size,start_of_fat, blocks_in_fat, start_of_file);
 
 
 
@@ -119,10 +108,10 @@ void print_fat_info(int block_size, int start_of_fat, int blocks_in_fat, void *m
 	}
 
 	printf(
-		"FAT information: \n"
-		"Free Blocks: %d\n"
-		"Reserved Blocks: %d\n"
-		"Allocated Blocks: %d\n", 
+		"FAT information\n"
+		"Free Blocks: %u\n"
+		"Reserved Blocks: %u\n"
+		"Allocated Blocks: %u\n", 
 
 		num_free_blocks,
 		num_reserved_blocks,

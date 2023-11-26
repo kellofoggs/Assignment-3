@@ -10,45 +10,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <netinet/in.h>
-//Struct for superblock
-typedef struct __attribute__((__packed__))superblock{
-	uint8_t fs_id [8];
-	uint16_t block_size;
-	uint32_t file_system_block_count;
-	uint32_t fat_start_block;
-	uint32_t fat_block_count;
-	uint32_t root_dir_start_block;
-	uint32_t root_dir_block_count;
-} superblock_t;
-
-//Date and time of an entry into a directory
-typedef struct __attribute__((__packed__)) dir_entry_timedate {
-	uint16_t year;
-	uint8_t month;
-	uint8_t day;
-	uint8_t hour;
-	uint8_t minute;
-	uint8_t second;
-} dir_entry_timedate_t;
-
-//Directory entry struct
-typedef struct __attribute__((__packed__)) dir_entry{
-	uint8_t status;
-	uint32_t starting_block;
-	uint32_t block_count;
-	uint32_t size;
-	dir_entry_timedate_t create_time;
-	dir_entry_timedate_t modify_time;
-	uint8_t filename[31];
-	uint8_t unused[6];
-
-}dir_entry_t;
+#include "diskutil.h"
 
 //Function declarations
 void get_all_fields(void *start_of_file, int cursor);
 void print_directories(int file_descriptor, char* directory_path );
 
-void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size);
+void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size);
 
 /**
  * Function that uses packed directory entry struct to print info about the entry in the directory
@@ -152,8 +120,8 @@ void print_directories(int file_descriptor, char* directory_path ){
 	int root_end = block_size * (root_directory_start + root_directory_blocks);
 	
 	//Find desired directory which sets the cursor and root_end
-	find_directory(directory_path, superblock, start_of_file, &cursor, &root_end, block_size);
-	
+	find_file(directory_path, superblock, start_of_file, &cursor, &root_end, block_size);
+	//printf("Cursor @ %d, end of root @ %d", cursor, root_end);
 	
 	//Print the directory entries out
 
@@ -180,7 +148,7 @@ void print_directories(int file_descriptor, char* directory_path ){
  * @returns: nothing
  * 
 */
-void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size){
+void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size){
 
 
 	bool directory_found = false;
@@ -210,11 +178,17 @@ void find_directory(char* directory_path, superblock_t* superblock, void* start_
 			//Get the next section of the path if any and move cursor to it
 			dir_to_look_for = strtok(NULL, "/");
 			temp_cursor = htonl(entry->starting_block) *block_size;
-			temp_root_end = (htonl(entry->block_count) +htonl(entry->starting_block))*512;
+			temp_root_end = (htonl(entry->block_count) +htonl(entry->starting_block))*block_size;
 
 			//If no next section of the path then we've found the desired directory
 			if (dir_to_look_for == NULL){
 				directory_found = true;
+				if (entry->status != 5){
+					printf("The subdirectory argument provided is not a directory.");
+					printf(" Its behavior is not defined.\n");
+					exit(-1);
+				}
+				break;
 			}
 			continue;
 
