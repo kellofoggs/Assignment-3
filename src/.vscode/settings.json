@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "diskutil.h": "c",
+        "fcntl.h": "c",
+        "types.h": "c",
+        "stdbool.h": "c"
+    }
+}
