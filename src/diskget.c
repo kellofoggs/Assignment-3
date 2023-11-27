@@ -156,7 +156,7 @@ void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd){
 		//printf("%u\n", buffer);
 		//write(fd, &buffer, 4);
 		fwrite(&buffer, 4, 1, ffd);
-		fseek(ffd, 0, SEEK_END);
+		//fseek(ffd, 0, SEEK_END);
 		//write(fd, &counter, 1);
 		//write (fd, "\n", 1);
 		cursor = cursor + 4;
