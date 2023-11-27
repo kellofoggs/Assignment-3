@@ -119,7 +119,7 @@ void print_directories(int file_descriptor, char* source_path, char* target_file
 	//Find desired file which sets the cursor and root_end
 	dir_entry_t* source_file_entry;
 	find_file(source_path, superblock, start_of_file, &cursor, &root_end, block_size, &source_file_entry);
-	printf("source file entry: %s\n", source_file_entry->filename);
+	//printf("source file entry: %s\n", source_file_entry->filename);
 
 	//Move cursor to the start of the block 
 	cursor = htonl(source_file_entry->starting_block)*block_size;
@@ -155,7 +155,7 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 	int buffer;
 	int output_buffer;
 	int current_block = htonl(entry->starting_block);
-	printf("Current block: %u\n", current_block);
+	//printf("Current block: %u\n", current_block);
 	int num_blocks = htonl(entry->block_count);
 	//int 
 
@@ -179,7 +179,7 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 		memcpy(&current_block,mem_mapping+ start_of_fat_in_bytes+(current_block*4), 4);
 		current_block = htonl(current_block);
 		
-		printf("cursor @ %u\n", cursor);
+		//printf("cursor @ %u\n", cursor);
 		cursor = current_block*block_size;
 		blocks_traversed++;
 
@@ -275,7 +275,7 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
 			//If no next section of the path then we've found the desired file, return the file
 			if (dir_to_look_for == NULL){
 				directory_found = true;
-				printf("Found the file  @ %u with %u bytes", htonl(entry->starting_block)*512, htonl(entry->block_count)*512);
+				//printf("Found the file  @ %u with %u bytes", htonl(entry->starting_block)*512, htonl(entry->block_count)*512);
 				
 				 *source_file = entry ;
 			}
@@ -287,7 +287,7 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
 
 	}
 	if (!directory_found){
-		printf("Directory with path %s not found\n", full_path);
+		printf("File not found");
 		exit(-1);
 	}
 
@@ -315,10 +315,10 @@ int main(int argc, char* argv[]){
         exit(-1);
     }
 
-    /*if (argc != 4){
+    if (argc != 4){
         printf("Invalid argument(s) provided! Try ./diskget [name_of_image] [path_of_directory_in_file_system] [name_of_file]\n");
         exit(-1);
-    }*/
+    }
 
 
 	//Open the file with read access only

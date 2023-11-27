@@ -31,3 +31,16 @@ typedef struct __attribute__((__packed__)) dir_entry{
 	uint8_t unused[6];
 
 }dir_entry_t;
+
+typedef struct superblock_info{
+	uint16_t 	block_size;
+	uint32_t	fs_block_count;
+	uint32_t	start_of_fat;
+	uint32_t	blocks_in_fat;
+	uint32_t	root_directory_start;
+	uint32_t	root_directory_blocks;
+	uint32_t free_blocks;
+	uint32_t reserved_blocks;
+	uint32_t allocated_blocks;
+
+}superblock_info_t;

@@ -211,16 +211,19 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
 int main(int argc, char* argv[]){
 
 	//Handle arguments
-	if (argc == 1){
-        printf("Include the name of the img file after the command as an argument, followed by the path to the "
-		"directory\n");
-        exit(-1);
-    }
- if (argc != 3){
-        printf("Invalid argument(s) provided! Try ./diskist [name_of_image.img] /[path_of_directory]\n"
+	char* path;
+	if (argc == 2){
+		path = "/";
+
+
+	}else if (argc != 3){
+        printf("Invalid argument(s) provided! Try ./diskist [name_of_image.img] [path_of_directory]\n"
 		);
         exit(-1);
-    }
+    }else {
+
+		path = argv[2];
+	}
 
 
 	//Open the file with read access only
@@ -234,7 +237,7 @@ int main(int argc, char* argv[]){
 		exit(-1);
 	}
 
-	print_directories(file_descriptor, argv[2]);
+	print_directories(file_descriptor, path);
 	close(file_descriptor);
 
 	return 0;
