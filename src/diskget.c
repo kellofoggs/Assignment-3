@@ -14,10 +14,10 @@
 
 
 //char* strupr part of string.h and stdio.h
-void print_directory(int file_descriptor, char* source_path, char* file_name );
+void print_directory(int img_file_descriptor, char* source_path, char* file_name );
 void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t** source_file);
-void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count);
-void write_block(int cursor, int fd, void* mem_mapping);
+void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count, FILE* ffd);
+void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd);
 int block_size;
 
 
@@ -25,36 +25,39 @@ int block_size;
 
 
 /**
- * Function that prints out the desired directory
- * @args: 
- * 	file_descriptor: file descriptor returned from open system command
+ * Function that copies file from img to operating system
+ *  @args: 
+ * 	img_file_descriptor: file descriptor returned from open system command
  * 	directory_path: path to desired directory
  * 
  * @returns:
  * 	nothing is returned
  * 
 */
-void print_directory(int file_descriptor, char* source_path, char* target_file_name ){
+void print_directory(int img_file_descriptor, char* source_path, char* target_file_name ){
 	
-	struct stat* buf;
-	superblock_t* superblock;
+	struct stat buf;
+	superblock_t superblock;
 	int file_cursor = 0;
 	
 	//Use fstat as we need the size of the img
-	fstat(file_descriptor, buf);
-
+	int fstat_return = fstat(img_file_descriptor, &buf);
+	if (fstat_return < 0){
+		perror("fstat()");
+		exit(-1);
+	}
 
 	//Memory map the img
-	void *start_of_file =  mmap(NULL, buf->st_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
+	void *start_of_file =  mmap(NULL, buf.st_size, PROT_READ, MAP_PRIVATE, img_file_descriptor, 0);
 
 	//Create superblock packed struct
-	superblock = (superblock_t*)start_of_file;
+	superblock = *(superblock_t*)start_of_file;
 
 	//Setup for root directory in big-endian using superblock
-	int root_directory_start = htonl(superblock->root_dir_start_block);
-	int root_directory_blocks = htonl(superblock->root_dir_block_count);
+	int root_directory_start = htonl(superblock.root_dir_start_block);
+	int root_directory_blocks = htonl(superblock.root_dir_block_count);
 
-	block_size = htons(superblock->block_size);
+	block_size = htons(superblock.block_size);
 
 	//Setup the cursor at the bit that signifies start of root
 	int cursor = block_size*root_directory_start;
@@ -62,22 +65,26 @@ void print_directory(int file_descriptor, char* source_path, char* target_file_n
 	
 	//Find desired file which sets the cursor and root_end
 	dir_entry_t* source_file_entry;
-	find_file(source_path, superblock, start_of_file, &cursor, &root_end, block_size, &source_file_entry);
-	//printf("source file entry: %s\n", source_file_entry->filename);
+	find_file(source_path, &superblock, start_of_file, &cursor, &root_end, block_size, &source_file_entry);
 
 	//Move cursor to the start of the block 
 	cursor = htonl(source_file_entry->starting_block)*block_size;
 
-	
-
 	//copy desired_bytes into a file outside of the system, give full access to all 3 types of users, access octal number generated with chdmod-calculator.org
-	int os_system_file = open(target_file_name, O_WRONLY| O_CREAT, 0777);
+	int os_system_file = 2; //= open(target_file_name, O_WRONLY| O_CREAT, 0777);
+	FILE *os_file;
+	os_file = fopen(target_file_name, "w");
+	if (os_file == NULL){
+		perror("fopen()");
+		exit(-1);
+	}
+
 	if (os_system_file < 0){
 		printf("There was an error creating the file in the current working directory");
 		exit(-1);
 
 	}
-	traverse_fat(cursor, start_of_file, source_file_entry, os_system_file,htonl(superblock->fat_start_block), htonl(superblock->fat_block_count));
+	traverse_fat(cursor, start_of_file, source_file_entry, os_system_file,htonl(superblock.fat_start_block), htonl(superblock.fat_block_count),os_file);
 
 
 	close(os_system_file);
@@ -87,13 +94,12 @@ void print_directory(int file_descriptor, char* source_path, char* target_file_n
  * Starts with cursor at the start of fat table and moves cursor and with knowledge of where the first block is and the block size
  * 
 */
-void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count){
+void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count, FILE* ffd){
 	int temp_cursor = cursor;
 	int buffer;
 	int output_buffer;
-	int current_block = htonl(entry->starting_block);
-	//printf("Current block: %u\n", current_block);
-	int num_blocks = htonl(entry->block_count);
+	uint32_t current_block = htonl(entry->starting_block);
+	uint32_t num_blocks = htonl(entry->block_count);
 	//int 
 
 	//read the entire block that we're currently looking at
@@ -109,14 +115,13 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 	//While we haven't gotten to 0xffff ffff in the FAT
 	while (!end_of_file_reached){
 		//Write out the current block
-		write_block(cursor, fd, mem_mapping);
+		write_block(cursor, fd, mem_mapping, ffd);
 	
 
 		//Look at fat table and move current block to the next block
 		memcpy(&current_block,mem_mapping+ start_of_fat_in_bytes+(current_block*4), 4);
 		current_block = htonl(current_block);
 		
-		//printf("cursor @ %u\n", cursor);
 		cursor = current_block*block_size;
 		blocks_traversed++;
 
@@ -126,13 +131,8 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 		}
 
 
-		//output_buffer = htonl(output_buffer);
-		//printf("next_block:%u\n", output_buffer);
 
 	}
-	//printf("The buffer's value is: %u\n", buffer);
-
-	//read the 
 
 
 
@@ -141,20 +141,26 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 /**
  * Writes out block in 4 byte intervals
  * @args:
- * 	cursor: the cursor that starts at the beginning of the block
+ * 	int cursor: the cursor that starts at the beginning of the block
  * 
 */
-void write_block(int cursor, int fd, void* mem_mapping){
+void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd){
 	uint32_t buffer;
 	//write(fd, &buffer, 4);
 	int block_end = cursor+block_size;
+	int counter = 0;
 	//traverse through block reading
 	while (cursor < block_end){
 		memcpy(&buffer,mem_mapping+cursor, 4);
-	 	buffer = htonl(buffer);
+	 	//buffer = htonl(buffer);
 		//printf("%u\n", buffer);
-		write(fd, &buffer, 4);
+		//write(fd, &buffer, 4);
+		fwrite(&buffer, 4, 1, ffd);
+		fseek(ffd, 0, SEEK_END);
+		//write(fd, &counter, 1);
+		//write (fd, "\n", 1);
 		cursor = cursor + 4;
+		counter++;
 	}
 
 
@@ -258,17 +264,23 @@ int main(int argc, char* argv[]){
 
 
 	//Open the file with read access only
-	int file_descriptor = open(argv[1], 0);
+	int img_file_descriptor = open(argv[1], 0);
 
 
 	//When the file opening caused an error
-	if (file_descriptor < 0 ){
+	if (img_file_descriptor < 0 ){
 		printf("The file could not be opened. The file may not exist or you may not have access to it\n");
 		exit(-1);
 	}
+	print_directory(img_file_descriptor, argv[2],argv[3]);
+	close(img_file_descriptor);
 
-	print_directory(file_descriptor, argv[2],argv[3]);
-	close(file_descriptor);
 
+	/*int fd = open("test.img", 0);
+	if (fd < 0){
+		perror("open()");
+	}
+	print_directory(fd, "/foo.txt", "foo.txt");
+	close(fd);*/
 	return 0;
 }

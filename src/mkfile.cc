@@ -1,71 +1,70 @@
-/
-//km /elif
-cc.
+//
+// mkfile.cc
+//
 
-//cni#edults< .oid#
->hlcni edusoi<aert
+#include <stdio.h>
+#include <iostream>
 
->mfed# eniFFUBS_RE	EZI
-215fed# eniCOLBOC_K	TNUu
+#define BUFFER_SIZE	512
+#define BLOCK_COUNT	5
 
-5gnisman apses ec
-;dttni
-iam  ( n tnicgrahc ,* ravgra) ][	
+using namespace std;
+
+int main ( int argc, char *argv[] )
 {
-rahcub* reffFUB[_REFEZIS	
-;]	tnicolbuoCk= tnOLB C_KCTNUOc	
-; rah=	hc'A' 
+	char *buffer[BUFFER_SIZE];
+	int	blockCount = BLOCK_COUNT;
+	char ch	= 'A';
 	
-; fi	ra (! cg 4 ={	
-)c		
- tuo" <<gasUm :efeka elielifemanzis hc ecara"ret << ldne		
-;uter0 nr}	
-;	
+	if ( argc != 4 )
+	{
+		cout << "Usage: makefile filename size character" << endl;
+		return 0;
+	}
 	
-ELIFif* = elpof ( nevgra,]1[bw" 
-;)"i	
-	 ( flif!
-) e	
-{	uoc	<< toC" ndluc t'taer" :e << vgra ]1[e <<;ldnr		
-rute;0 n
-}	
-i	
-	 ( fvgra ]2[		
-)colbuoCk= tnota ra(i2[vg
-;)]i	
-	 ( fvgra ]3[		
-)= hcgra ]3[v;]0[	
+	FILE *file = fopen (argv[1], "wb");
 	
- rofni ( i t;0 =< i olb oCkc;tnu++i 	
-) 		
-{smem( teffub ,retni(,hc)FUB _REFEZIS	
-;)rwf	 etifub(,refzis  foeahc( ,)rFFUBS_RE,EZIlif 
-;)ehc		
-;++	
-}	olcf( eselif	
-;)er	
-nrut
-;0 
+	if ( !file )
+	{
+		cout << "Couldn't create: " << argv[1] << endl;
+		return 0;
+	}
+	
+	if ( argv[2] )
+		blockCount = atoi(argv[2]);
+	
+	if ( argv[3] )
+		ch = argv[3][0];
+	
+	for ( int i = 0; i < blockCount; i++ )
+	{
+		memset (buffer, (int)ch, BUFFER_SIZE);
+		fwrite (buffer, sizeof (char), BUFFER_SIZE, file);
+		ch++;
+	}
+	fclose (file);
+	
+	return 0;
+}
 
 
-}T	
-	c	
-; rah=	hc'A' 
 	
-; fi	ra (! cg 4 ={	
-)c		
- tuo" <<gasUm :efeka elielifemanzis hc ecara"ret << ldne		
-;uter0 nr}	
-;	
+	T;
+	char ch	= 'A';
 	
-ELIFif* = elpof ( nevgra,]1[bw" 
-;)"i	
-	 ( flif!
-) e	
-{	uoc	<< toC" ndluc t'taer" :e << vgra ]1[e <<;ldnr		
-rute;0 n
-}	
-i	
-	 ( fvgra ]2[		
-)colbuoCk= tnota ra(i2[vg
-;)]
+	if ( argc != 4 )
+	{
+		cout << "Usage: makefile filename size character" << endl;
+		return 0;
+	}
+	
+	FILE *file = fopen (argv[1], "wb");
+	
+	if ( !file )
+	{
+		cout << "Couldn't create: " << argv[1] << endl;
+		return 0;
+	}
+	
+	if ( argv[2] )
+		blockCount = atoi(argv[2]);

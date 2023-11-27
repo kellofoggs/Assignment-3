@@ -52,12 +52,7 @@ void prep_superblock_struct(int file_descriptor, superblock_info_t* superblock_i
 	superblock_info_struct->root_directory_start = htonl(the_super_block->root_dir_start_block);
 	superblock_info_struct->root_directory_blocks = htonl(the_super_block->root_dir_block_count);
 
-		prep_fat_struct(superblock_info_struct, start_of_file);
-
-
-	
-	
-
+	prep_fat_struct(superblock_info_struct, start_of_file);
 }
 
 void prep_fat_struct(superblock_info_t* superblock_info_struct, void* start_of_file){
