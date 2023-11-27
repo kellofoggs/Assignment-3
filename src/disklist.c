@@ -16,7 +16,7 @@
 void get_all_fields(void *start_of_file, int cursor);
 void print_directory(int file_descriptor, char* directory_path );
 
-void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size);
+void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size);
 
 /**
  * Function that uses packed directory entry struct to print info about the entry in the directory
@@ -69,8 +69,6 @@ void get_all_fields(void *start_of_file, int cursor){
 	int day = creation_time.day;
 
 
-
-	//Get creation time
 	//Because we only have 1 byte the endianess does not matter, we don't convert with hton
 
 	int hours = creation_time.hour;
@@ -96,32 +94,32 @@ void get_all_fields(void *start_of_file, int cursor){
 */
 void print_directory(int file_descriptor, char* directory_path ){
 	
-	struct stat* buf;
-	superblock_t* superblock;
+	struct stat buf;
+	superblock_t superblock;
 	int file_cursor = 0;
 	
 	//Use fstat as we need the size of the img
-	fstat(file_descriptor, buf);
+	fstat(file_descriptor, &buf);
 
 
 	//Memory map the img
-	void *start_of_file =  mmap(NULL, buf->st_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
+	void *start_of_file =  mmap(NULL, buf.st_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
 
 	//Create superblock packed struct
-	superblock = (superblock_t*)start_of_file;
+	superblock = *(superblock_t*)start_of_file;
 
 	//Setup for root directory print in big-endian
-	int root_directory_start = htonl(superblock->root_dir_start_block);
-	int root_directory_blocks = htonl(superblock->root_dir_block_count);
+	int root_directory_start = htonl(superblock.root_dir_start_block);
+	int root_directory_blocks = htonl(superblock.root_dir_block_count);
 
-	int block_size = htons(superblock->block_size);
+	int block_size = htons(superblock.block_size);
 
 	//Setup the cursor at the bit that signifies start of root
 	int cursor = block_size*root_directory_start;
 	int root_end = block_size * (root_directory_start + root_directory_blocks);
 	
 	//Find desired directory which sets the cursor and root_end
-	find_file(directory_path, superblock, start_of_file, &cursor, &root_end, block_size);
+	find_directory(directory_path, &superblock, start_of_file, &cursor, &root_end, block_size);
 	//printf("Cursor @ %d, end of root @ %d", cursor, root_end);
 	
 	//Print the directory entries out
@@ -149,7 +147,7 @@ void print_directory(int file_descriptor, char* directory_path ){
  * @returns: nothing
  * 
 */
-void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size){
+void find_directory(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size){
 
 
 	bool directory_found = false;

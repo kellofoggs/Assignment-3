@@ -15,9 +15,10 @@
 
 //char* strupr part of string.h and stdio.h
 void print_directory(int img_file_descriptor, char* source_path, char* file_name );
-void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t** source_file);
+void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t* source_file);
 void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count, FILE* ffd);
-void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd);
+void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd, int* blocks_read, int file_size);
+bool is_file(dir_entry_t* entry);
 int block_size;
 
 
@@ -64,14 +65,15 @@ void print_directory(int img_file_descriptor, char* source_path, char* target_fi
 	int root_end = block_size * (root_directory_start + root_directory_blocks);
 	
 	//Find desired file which sets the cursor and root_end
-	dir_entry_t* source_file_entry;
+	dir_entry_t source_file_entry;
+	printf("Going to find the file ");
 	find_file(source_path, &superblock, start_of_file, &cursor, &root_end, block_size, &source_file_entry);
 
 	//Move cursor to the start of the block 
-	cursor = htonl(source_file_entry->starting_block)*block_size;
+	cursor = htonl(source_file_entry.starting_block)*block_size;
 
 	//copy desired_bytes into a file outside of the system, give full access to all 3 types of users, access octal number generated with chdmod-calculator.org
-	int os_system_file = 2; //= open(target_file_name, O_WRONLY| O_CREAT, 0777);
+	int os_system_file = open(target_file_name, O_WRONLY| O_CREAT, 0777);
 	FILE *os_file;
 	os_file = fopen(target_file_name, "w");
 	if (os_file == NULL){
@@ -84,7 +86,7 @@ void print_directory(int img_file_descriptor, char* source_path, char* target_fi
 		exit(-1);
 
 	}
-	traverse_fat(cursor, start_of_file, source_file_entry, os_system_file,htonl(superblock.fat_start_block), htonl(superblock.fat_block_count),os_file);
+	traverse_fat(cursor, start_of_file, &source_file_entry, os_system_file,htonl(superblock.fat_start_block), htonl(superblock.fat_block_count),os_file);
 
 
 	close(os_system_file);
@@ -113,9 +115,11 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 	int start_of_fat_in_bytes = fat_start*block_size;
 	int blocks_traversed = 0;
 	//While we haven't gotten to 0xffff ffff in the FAT
+			int blocks_read = 0;
+
 	while (!end_of_file_reached){
 		//Write out the current block
-		write_block(cursor, fd, mem_mapping, ffd);
+		write_block(cursor, fd, mem_mapping, ffd, &blocks_read, htonl(entry->size));
 	
 
 		//Look at fat table and move current block to the next block
@@ -144,22 +148,26 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
  * 	int cursor: the cursor that starts at the beginning of the block
  * 
 */
-void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd){
+void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd, int* blocks_read, int file_size){
 	uint32_t buffer;
 	//write(fd, &buffer, 4);
 	int block_end = cursor+block_size;
 	int counter = 0;
+	printf("\n");
 	//traverse through block reading
-	while (cursor < block_end){
-		memcpy(&buffer,mem_mapping+cursor, 4);
+	while (cursor < block_end && *blocks_read < file_size){
+		*blocks_read = *blocks_read+1;
+
+		printf("bytes read: %u\n", *blocks_read);
+		memcpy(&buffer,mem_mapping+cursor, 1);
 	 	//buffer = htonl(buffer);
 		//printf("%u\n", buffer);
-		//write(fd, &buffer, 4);
-		fwrite(&buffer, 4, 1, ffd);
+		write(fd, &buffer, 1);
+		//fwrite(&buffer, 1, 1, ffd);
 		//fseek(ffd, 0, SEEK_END);
 		//write(fd, &counter, 1);
 		//write (fd, "\n", 1);
-		cursor = cursor + 4;
+		cursor = cursor + 1;
 		counter++;
 	}
 
@@ -182,13 +190,13 @@ void write_block(int cursor, int fd, void* mem_mapping, FILE* ffd){
  * @returns: nothing
  * 
 */
-void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t** source_file){
+void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t* source_file){
 
 
 	bool directory_found = false;
 	char full_path[2^32];
 	strcpy(full_path, directory_path);
-	dir_entry_t* entry;
+	dir_entry_t entry;
 	/**
 	 *	If the directory path is the root, then do nothing as cursor starts at the root and root_end is 
 	 *  already setup to be the end of the root 
@@ -200,26 +208,29 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
 	}
 
 	char* dir_to_look_for = strtok(directory_path, "/");
+	printf("The dir to look for is%s\n", dir_to_look_for);
+	write(1, "SHIT", 4);
 	int temp_cursor = *cursor;
 	int temp_root_end = *root_end;
 	//look through all entries in current root till we find the name we're looking for
 	while (temp_cursor < temp_root_end && dir_to_look_for != NULL){
 
-		entry = (dir_entry_t*)(start_of_file + temp_cursor);
+		entry = *(dir_entry_t*)(start_of_file + temp_cursor);
 
 		//When we find the matching name in the relevant section of path
-		if (strcmp(entry->filename, dir_to_look_for) == 0){
+		//printf("%s\n", entry.filename);
+		if (strcmp(entry.filename, dir_to_look_for) == 0){
 
 			//Get the next section of the path if any and move cursor to it
 			dir_to_look_for = strtok(NULL, "/");
-			temp_cursor = htonl(entry->starting_block) *block_size;
-			temp_root_end = (htonl(entry->block_count) +htonl(entry->starting_block) * block_size);
+			temp_cursor = htonl(entry.starting_block) *block_size;
+			temp_root_end = (htonl(entry.block_count) +htonl(entry.starting_block) * block_size);
 
 			//If no next section of the path then we've found the desired file, return the file
 			if (dir_to_look_for == NULL){
 				directory_found = true;
 				
-				 *source_file = entry ;
+				*source_file = entry ;
 			}
 			continue;
 
@@ -229,7 +240,12 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
 
 	}
 	if (!directory_found){
-		printf("File not found");
+		printf("File not found\n");
+		exit(-1);
+	}
+
+	if ( !is_file(&entry)){
+		printf("The path you specified is not to a file");
 		exit(-1);
 	}
 
@@ -240,6 +256,11 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
 
 }
 
+bool is_file(dir_entry_t* entry){
+	bool is_a_file = (entry->status & 7) == 3;
+	printf("Are you a file?");
+	return (is_a_file);
+}
 
 /**
  * Main method 

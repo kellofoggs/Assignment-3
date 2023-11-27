@@ -89,3 +89,4 @@ void prep_fat_struct(superblock_info_t* superblock_info_struct, void* start_of_f
 	superblock_info_struct->allocated_blocks = num_allocated_blocks;
 
 }
+

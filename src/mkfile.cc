@@ -49,22 +49,4 @@ int main ( int argc, char *argv[] )
 
 
 	
-	T;
-	char ch	= 'A';
 	
-	if ( argc != 4 )
-	{
-		cout << "Usage: makefile filename size character" << endl;
-		return 0;
-	}
-	
-	FILE *file = fopen (argv[1], "wb");
-	
-	if ( !file )
-	{
-		cout << "Couldn't create: " << argv[1] << endl;
-		return 0;
-	}
-	
-	if ( argv[2] )
-		blockCount = atoi(argv[2]);

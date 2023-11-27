@@ -323,6 +323,7 @@ void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path ){
 
 	
 	//Look for free blocks in the FAT
+	
 
 
 
@@ -336,6 +337,10 @@ void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path ){
 
 }
 
+void find_empty_fat_slot(){
+	
+
+}
 
 /**
  * Main method 
