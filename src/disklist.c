@@ -14,7 +14,7 @@
 
 //Function declarations
 void get_all_fields(void *start_of_file, int cursor);
-void print_directories(int file_descriptor, char* directory_path );
+void print_directory(int file_descriptor, char* directory_path );
 
 void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size);
 
@@ -43,10 +43,11 @@ void get_all_fields(void *start_of_file, int cursor){
 	status_byte = directory_entry->status;
 
 	//Set status char
-	if (status_byte == 3){
+	int last_three_bits = status_byte & 7;
+	if (last_three_bits == 3){
 		file_or_dir_char = 'F';
 	}
-	else if (status_byte== 5){
+	else if (last_three_bits== 5){
 		file_or_dir_char = 'D';
 	}
 	
@@ -93,7 +94,7 @@ void get_all_fields(void *start_of_file, int cursor){
  * 	nothing is returned
  * 
 */
-void print_directories(int file_descriptor, char* directory_path ){
+void print_directory(int file_descriptor, char* directory_path ){
 	
 	struct stat* buf;
 	superblock_t* superblock;
@@ -237,7 +238,7 @@ int main(int argc, char* argv[]){
 		exit(-1);
 	}
 
-	print_directories(file_descriptor, path);
+	print_directory(file_descriptor, path);
 	close(file_descriptor);
 
 	return 0;

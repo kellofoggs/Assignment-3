@@ -14,7 +14,7 @@
 
 
 //char* strupr part of string.h and stdio.h
-void print_directories(int file_descriptor, char* source_path, char* file_name );
+void print_directory(int file_descriptor, char* source_path, char* file_name );
 void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t** source_file);
 void get_all_fields(void *start_of_file, int cursor);
 void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count);
@@ -90,7 +90,7 @@ void get_all_fields(void *start_of_file, int cursor){
  * 	nothing is returned
  * 
 */
-void print_directories(int file_descriptor, char* source_path, char* target_file_name ){
+void print_directory(int file_descriptor, char* source_path, char* target_file_name ){
 	
 	struct stat* buf;
 	superblock_t* superblock;
@@ -371,7 +371,7 @@ int main(int argc, char* argv[]){
 	}
     char* name_of_file_in_os = argv[2];
     char* path_to_dest_in_img = argv[3];
-	print_directories(img_file_descriptor, name_of_file_in_os, path_to_dest_in_img);
+	print_directory(img_file_descriptor, name_of_file_in_os, path_to_dest_in_img);
 	close(img_file_descriptor);
 
 	return 0;

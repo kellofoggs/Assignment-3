@@ -1,3 +1,13 @@
+#include <stdio.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <stdlib.h>
+#include <netinet/in.h>
+
 //Struct for superblock
 typedef struct __attribute__((__packed__))superblock{
 	uint8_t fs_id [8];
@@ -44,3 +54,8 @@ typedef struct superblock_info{
 	uint32_t allocated_blocks;
 
 }superblock_info_t;
+
+
+void prep_superblock_struct(int file_descriptor, superblock_info_t* superblock_info_struct);
+void prep_fat_struct(superblock_info_t* superblock_info_struct, void* start_of_file);
+

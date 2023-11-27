@@ -14,71 +14,15 @@
 
 
 //char* strupr part of string.h and stdio.h
-void print_directories(int file_descriptor, char* source_path, char* file_name );
+void print_directory(int file_descriptor, char* source_path, char* file_name );
 void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t** source_file);
-void get_all_fields(void *start_of_file, int cursor);
 void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count);
 void write_block(int cursor, int fd, void* mem_mapping);
 int block_size;
 
 
 
-void get_all_fields(void *start_of_file, int cursor){
-	int status_byte = 0;
-	char file_or_dir_char;
-	char* name;
-	int size;
 
-	dir_entry_t* directory_entry = (dir_entry_t*)(start_of_file+cursor);
-
-
-	/**
-	 * Get status of whether entry is file/directory
-	 * Because we only have 1 byte the endianess does not matter, we don't convert with hton
-	*/
-	
-	status_byte = directory_entry->status;
-
-	//Set status char
-	if (status_byte == 3){
-		file_or_dir_char = 'F';
-	}
-	else if (status_byte== 5){
-		file_or_dir_char = 'D';
-	}
-	
-	//Get size
-	//memcpy(&size, start_of_file+cursor+9, 4);
-	size = htonl(directory_entry->size);
-
-	//get name
-
-	name = directory_entry->filename;
-	//get creation date
-	
-	dir_entry_timedate_t creation_time = directory_entry->create_time;
-	int year = htons(creation_time.year);
-
-	//Because we only have 1 byte the endianess does not matter, we don't convert with hton
-
-	int month = creation_time.month;
-	int day = creation_time.day;
-
-
-
-	//Get creation time
-	//Because we only have 1 byte the endianess does not matter, we don't convert with hton
-
-	int hours = creation_time.hour;
-	int minutes = creation_time.minute;
-	int seconds = creation_time.second;
-
-
-	//If we have a non-empty entry print its info
-	if (status_byte != 0){
-		printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n", file_or_dir_char, size, name, year,month,day, hours, minutes, seconds);
-	}
-}
 
 /**
  * Function that prints out the desired directory
@@ -90,7 +34,7 @@ void get_all_fields(void *start_of_file, int cursor){
  * 	nothing is returned
  * 
 */
-void print_directories(int file_descriptor, char* source_path, char* target_file_name ){
+void print_directory(int file_descriptor, char* source_path, char* target_file_name ){
 	
 	struct stat* buf;
 	superblock_t* superblock;
@@ -127,23 +71,16 @@ void print_directories(int file_descriptor, char* source_path, char* target_file
 	
 
 	//copy desired_bytes into a file outside of the system, give full access to all 3 types of users, access octal number generated with chdmod-calculator.org
-	int unix_system_file = open(target_file_name, O_WRONLY| O_CREAT, 0777);
-	if (unix_system_file < 0){
+	int os_system_file = open(target_file_name, O_WRONLY| O_CREAT, 0777);
+	if (os_system_file < 0){
 		printf("There was an error creating the file in the current working directory");
 		exit(-1);
 
 	}
-	traverse_fat(cursor, start_of_file, source_file_entry, unix_system_file,htonl(superblock->fat_start_block), htonl(superblock->fat_block_count));
+	traverse_fat(cursor, start_of_file, source_file_entry, os_system_file,htonl(superblock->fat_start_block), htonl(superblock->fat_block_count));
 
 
-	close(unix_system_file);
-
-	//while (cursor < root_end){
-		//get_all_fields(start_of_file, cursor);
-	
-		//Move to next entry
-		//cursor = cursor+64;
-	//}
+	close(os_system_file);
 }
 
 /**
@@ -270,12 +207,11 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
 			//Get the next section of the path if any and move cursor to it
 			dir_to_look_for = strtok(NULL, "/");
 			temp_cursor = htonl(entry->starting_block) *block_size;
-			temp_root_end = (htonl(entry->block_count) +htonl(entry->starting_block))*512;
+			temp_root_end = (htonl(entry->block_count) +htonl(entry->starting_block) * block_size);
 
 			//If no next section of the path then we've found the desired file, return the file
 			if (dir_to_look_for == NULL){
 				directory_found = true;
-				//printf("Found the file  @ %u with %u bytes", htonl(entry->starting_block)*512, htonl(entry->block_count)*512);
 				
 				 *source_file = entry ;
 			}
@@ -331,7 +267,7 @@ int main(int argc, char* argv[]){
 		exit(-1);
 	}
 
-	print_directories(file_descriptor, argv[2],argv[3]);
+	print_directory(file_descriptor, argv[2],argv[3]);
 	close(file_descriptor);
 
 	return 0;
