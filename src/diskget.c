@@ -39,7 +39,6 @@ void print_directory(int img_file_descriptor, char* source_path, char* target_fi
 	
 	struct stat buf;
 	superblock_t superblock;
-	int file_cursor = 0;
 	
 	//Use fstat as we need the size of the img
 	int fstat_return = fstat(img_file_descriptor, &buf);
@@ -98,7 +97,7 @@ void print_directory(int img_file_descriptor, char* source_path, char* target_fi
 */
 void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count, FILE* ffd){
 	int temp_cursor = cursor;
-	int buffer;
+	uint32_t buffer;
 	int output_buffer;
 	uint32_t current_block = htonl(entry->starting_block);
 	uint32_t num_blocks = htonl(entry->block_count);

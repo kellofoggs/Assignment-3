@@ -302,25 +302,55 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
  * 
 */
 void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path ){
-   	struct stat* buf;
+   	struct stat source_file_stats;
+	struct stat img_file_stats;
+	superblock_t superblock;
+	superblock_info_t superblock_info;
 
     //Get the os file's stats for replication
     int os_file_fd = open(os_file_name, O_RDONLY);
     if (os_file_fd < 0){
-        perror("fstat()");
+		printf("Could not open the source file");
         exit(-1);
     }
+
+
+	int img_file_fd = open(img_file_path, 0);
+	if (img_file_fd < 0){
+		printf("Could not open the img file");
+		exit(-1);
+	}
     
 
-    int fstat_return, fstat(os_file_fd ,buf);
+    int fstat_return = fstat(os_file_fd, &source_file_stats);
+	int fstat_return_two = fstat(img_file_fd, &img_file_stats);
+	int source_file_size = source_file_stats.st_size;
 
-    if (fstat_return < 0){
+    if (fstat_return < 0 || fstat_return_two < 0){
 		perror("fstat()");
 		exit(-1);
 	}
 
-	int file_size = buf->st_size;
+	
+	int img_file_size = img_file_stats.st_size;
+	
 
+	//memory map the image
+	void *start_of_file =  mmap(NULL, img_file_size, PROT_READ, MAP_PRIVATE, img_file_fd, 0);
+
+	//Create superblock packed struct
+	superblock = *(superblock_t*)start_of_file;
+	prep_superblock_struct(img_file_fd, &superblock_info);
+
+	//Setup for root directory in big-endian using superblock
+	int root_directory_start = superblock_info.root_directory_start;
+	int root_directory_blocks = superblock_info.root_directory_blocks;
+
+	block_size = superblock_info.block_size;
+
+	//Setup the cursor at the bit that signifies start of root
+	int cursor = block_size*root_directory_start;
+	int root_end = block_size * (root_directory_start + root_directory_blocks);
 	
 	//Look for free blocks in the FAT
 	
@@ -336,8 +366,23 @@ void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path ){
     
 
 }
+/**Traverses down the fat until an empty spot (x0000 0000 is found)*/
+void find_empty_fat_slot(superblock_info_t *superblock, void* start_of_file){
+	//Initialize the current_fat reading as something besides 0 
+	uint32_t current_fat_reading = 0;
 
-void find_empty_fat_slot(){
+	//Get bounds of fat 
+	bool found_spot;
+	int cursor = (superblock->start_of_fat * superblock->block_size);
+	int end_of_fat = (superblock->start_of_fat + superblock->blocks_in_fat) * block_size; 
+	
+	while (cursor < end_of_fat){
+		memcpy(&current_fat_reading, , 4);
+		
+
+	}
+
+//	prep_superblock_struct()
 	
 
 }
