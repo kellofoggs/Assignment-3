@@ -43,7 +43,7 @@ void get_all_fields(void *start_of_file, int cursor){
 	status_byte = directory_entry->status;
 
 	//Set status char
-	int last_three_bits = status_byte & 7;
+	uint8_t last_three_bits = status_byte & 7;
 	if (last_three_bits == 3){
 		file_or_dir_char = 'F';
 	}

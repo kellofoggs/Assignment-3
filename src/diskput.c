@@ -16,135 +16,15 @@
 //char* strupr part of string.h and stdio.h
 void print_directory(int file_descriptor, char* source_path, char* file_name );
 void find_file(char* directory_path, superblock_t* superblock, void* start_of_file, int* cursor, int* root_end, int block_size, dir_entry_t** source_file);
-void get_all_fields(void *start_of_file, int cursor);
 void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int fat_start, int fat_count);
-void write_block(int cursor, int fd, void* mem_mapping);
+void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path );
+int find_empty_fat_slot(superblock_info_t *superblock, void* start_of_file);
+void write_to_block(int cursor, int img_fd, int os_fd, int *remaining_bytes, void* mem_mapping);
 int block_size;
 
 
 
-void get_all_fields(void *start_of_file, int cursor){
-	int status_byte = 0;
-	char file_or_dir_char;
-	char* name;
-	int size;
 
-	dir_entry_t* directory_entry = (dir_entry_t*)(start_of_file+cursor);
-
-
-	/**
-	 * Get status of whether entry is file/directory
-	 * Because we only have 1 byte the endianess does not matter, we don't convert with hton
-	*/
-	
-	status_byte = directory_entry->status;
-
-	//Set status char
-	if (status_byte == 3){
-		file_or_dir_char = 'F';
-	}
-	else if (status_byte== 5){
-		file_or_dir_char = 'D';
-	}
-	
-	//Get size
-	//memcpy(&size, start_of_file+cursor+9, 4);
-	size = htonl(directory_entry->size);
-
-	//get name
-
-	name = directory_entry->filename;
-	//get creation date
-	
-	dir_entry_timedate_t creation_time = directory_entry->create_time;
-	int year = htons(creation_time.year);
-
-	//Because we only have 1 byte the endianess does not matter, we don't convert with hton
-
-	int month = creation_time.month;
-	int day = creation_time.day;
-
-
-
-	//Get creation time
-	//Because we only have 1 byte the endianess does not matter, we don't convert with hton
-
-	int hours = creation_time.hour;
-	int minutes = creation_time.minute;
-	int seconds = creation_time.second;
-
-
-	//If we have a non-empty entry print its info
-	if (status_byte != 0){
-		printf("%c %10d %30s %4d/%02d/%02d %02d:%02d:%02d\n", file_or_dir_char, size, name, year,month,day, hours, minutes, seconds);
-	}
-}
-
-/**
- * Function that prints out the desired directory
- * @args: 
- * 	file_descriptor: file descriptor returned from open system command
- * 	directory_path: path to desired directory
- * 
- * @returns:
- * 	nothing is returned
- * 
-*/
-void print_directory(int file_descriptor, char* source_path, char* target_file_name ){
-	
-	struct stat* buf;
-	superblock_t* superblock;
-	int file_cursor = 0;
-	
-	//Use fstat as we need the size of the img
-	fstat(file_descriptor, buf);
-
-
-	//Memory map the img
-	void *start_of_file =  mmap(NULL, buf->st_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
-
-	//Create superblock packed struct
-	superblock = (superblock_t*)start_of_file;
-
-	//Setup for root directory in big-endian using superblock
-	int root_directory_start = htonl(superblock->root_dir_start_block);
-	int root_directory_blocks = htonl(superblock->root_dir_block_count);
-
-	block_size = htons(superblock->block_size);
-
-	//Setup the cursor at the bit that signifies start of root
-	int cursor = block_size*root_directory_start;
-	int root_end = block_size * (root_directory_start + root_directory_blocks);
-	
-	//Find desired file which sets the cursor and root_end
-	dir_entry_t* source_file_entry;
-	find_file(source_path, superblock, start_of_file, &cursor, &root_end, block_size, &source_file_entry);
-	//printf("source file entry: %s\n", source_file_entry->filename);
-
-	//Move cursor to the start of the block 
-	cursor = htonl(source_file_entry->starting_block)*block_size;
-
-	
-
-	//copy desired_bytes into a file outside of the system, give full access to all 3 types of users, access octal number generated with chdmod-calculator.org
-	int unix_system_file = open(target_file_name, O_WRONLY| O_CREAT, 0777);
-	if (unix_system_file < 0){
-		printf("There was an error creating the file in the current working directory");
-		exit(-1);
-
-	}
-	traverse_fat(cursor, start_of_file, source_file_entry, unix_system_file,htonl(superblock->fat_start_block), htonl(superblock->fat_block_count));
-
-
-	close(unix_system_file);
-
-	//while (cursor < root_end){
-		//get_all_fields(start_of_file, cursor);
-	
-		//Move to next entry
-		//cursor = cursor+64;
-	//}
-}
 
 /**
  * Starts with cursor at the start of fat table and moves cursor and with knowledge of where the first block is and the block size
@@ -172,7 +52,7 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 	//While we haven't gotten to 0xffff ffff in the FAT
 	while (!end_of_file_reached){
 		//Write out the current block
-		write_block(cursor, fd, mem_mapping);
+		//write_block(cursor, fd, mem_mapping);
 	
 
 		//Look at fat table and move current block to the next block
@@ -201,28 +81,6 @@ void traverse_fat(int cursor, void* mem_mapping, dir_entry_t* entry, int fd,int 
 
 }
 
-/**
- * Writes out block in 4 byte intervals
- * @args:
- * 	cursor: the cursor that starts at the beginning of the block
- * 
-*/
-void write_block(int cursor, int fd, void* mem_mapping){
-	uint32_t buffer;
-	//write(fd, &buffer, 4);
-	int block_end = cursor+block_size;
-	//traverse through block reading
-	while (cursor < block_end){
-		memcpy(&buffer,mem_mapping+cursor, 4);
-	 	buffer = htonl(buffer);
-		//printf("%u\n", buffer);
-		write(fd, &buffer, 4);
-		cursor = cursor + 4;
-	}
-
-
-
-}
 
 /**
  * Finds the file to be moved starting from the root block traversing deeper, stops if any part of the path is not findable
@@ -301,7 +159,7 @@ void find_file(char* directory_path, superblock_t* superblock, void* start_of_fi
  * Function that opens file given and writes it into the img provided
  * 
 */
-void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path ){
+void write_to_img(int file_system_fd,  char* img_file_path, char* os_file_name){
    	struct stat source_file_stats;
 	struct stat img_file_stats;
 	superblock_t superblock;
@@ -315,46 +173,95 @@ void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path ){
     }
 
 
-	int img_file_fd = open(img_file_path, 0);
+	/*int img_file_fd = open(img_file_path, 0);
 	if (img_file_fd < 0){
 		printf("Could not open the img file");
 		exit(-1);
-	}
-    
+	}*/
+    lseek(file_system_fd, 0, SEEK_SET);
 
     int fstat_return = fstat(os_file_fd, &source_file_stats);
-	int fstat_return_two = fstat(img_file_fd, &img_file_stats);
-	int source_file_size = source_file_stats.st_size;
+	int fstat_return_two = fstat(file_system_fd, &img_file_stats);
 
     if (fstat_return < 0 || fstat_return_two < 0){
 		perror("fstat()");
 		exit(-1);
 	}
-
 	
+	int source_file_size = source_file_stats.st_size;
 	int img_file_size = img_file_stats.st_size;
 	
 
 	//memory map the image
-	void *start_of_file =  mmap(NULL, img_file_size, PROT_READ, MAP_PRIVATE, img_file_fd, 0);
+	void *start_of_file =  mmap(NULL, img_file_size, PROT_READ, MAP_PRIVATE, file_system_fd, 0);
 
 	//Create superblock packed struct
 	superblock = *(superblock_t*)start_of_file;
-	prep_superblock_struct(img_file_fd, &superblock_info);
+	prep_superblock_struct(file_system_fd, &superblock_info);
 
 	//Setup for root directory in big-endian using superblock
 	int root_directory_start = superblock_info.root_directory_start;
 	int root_directory_blocks = superblock_info.root_directory_blocks;
+
+	int fat_start = superblock_info.start_of_fat;
 
 	block_size = superblock_info.block_size;
 
 	//Setup the cursor at the bit that signifies start of root
 	int cursor = block_size*root_directory_start;
 	int root_end = block_size * (root_directory_start + root_directory_blocks);
-	
+	int remaining_bytes = source_file_size;
 	//Look for free blocks in the FAT
+	uint32_t free_spot = find_empty_fat_slot(&superblock_info, start_of_file);
+	int previous_spot = -1;
+	printf("Free spot @ block %d\n", free_spot);
+	uint32_t blocks_taken = 0;
 	
+	while(remaining_bytes > 0){
+		//If not the first block set value of previous spot to current spot
+		if (previous_spot != -1){
 
+		}
+		//Reserve free spot by writing "1"
+		//cursor;
+		cursor = (fat_start*block_size)+ (4 * free_spot);
+		printf("cursor: %u\n", cursor);
+		lseek(file_system_fd, cursor,SEEK_SET);
+		int reserved = 1234;
+		write(file_system_fd, &reserved, 4);
+		printf("Reserved: %d\n",reserved);
+		write(1, &reserved, 4);
+		previous_spot = free_spot;
+		
+		//Move cursor to the right block and write to it
+		cursor = free_spot*block_size;
+		write_to_block(cursor, file_system_fd, os_file_fd, &remaining_bytes, start_of_file);
+		blocks_taken++;
+
+		//Upon succesful write of a block find the next free spot and point the resreved spot in fat to it
+		free_spot = find_empty_fat_slot(&superblock_info, start_of_file);
+		cursor =  (fat_start*block_size) + (4*previous_spot);		
+		lseek(file_system_fd, cursor, SEEK_SET);
+		write(file_system_fd, &free_spot, 4);
+
+
+
+		//Move to the next free_fat_block
+		
+
+
+		
+
+		
+
+
+
+
+	}
+	//Move the file cursor to the right position in the FAT
+		//cursor = +free_spot*4;
+
+		//Move the file cursor empty position in FDT
 
 
 	//Write the end of the file first
@@ -366,23 +273,67 @@ void write_to_img(int file_system_fd, char* os_file_name, char* img_file_path ){
     
 
 }
+
+bool is_empty_entry(dir_entry_t* dir_entry){
+	uint8_t last_bit = (dir_entry->status) & 1;
+	return (last_bit == 0);
+
+}
+
+void write_to_block(int cursor, int img_fd, int os_fd, int *remaining_bytes, void* mem_mapping){
+	//Move the file cursor to the start of the block to be written
+	lseek(img_fd, cursor, SEEK_SET);
+	uint8_t buffer;
+	int counter = 0;
+	while(*remaining_bytes > 0 && counter < block_size){
+		
+		read(os_fd, &buffer, 1);
+		//Undo when writing to file.
+		//buffer = htonl(buffer);
+		
+		printf("%u\n", buffer);
+		write(img_fd, &buffer, 1);
+		*remaining_bytes = *remaining_bytes-1;
+		counter++;
+
+		printf("Remaining bytes: %d, counter: %d\n", *remaining_bytes, counter);
+	}
+
+}
+
 /**Traverses down the fat until an empty spot (x0000 0000 is found)*/
-void find_empty_fat_slot(superblock_info_t *superblock, void* start_of_file){
+int find_empty_fat_slot(superblock_info_t *superblock, void* start_of_file){
 	//Initialize the current_fat reading as something besides 0 
 	uint32_t current_fat_reading = 0;
+	int counter = 0;
 
 	//Get bounds of fat 
 	bool found_spot;
 	int cursor = (superblock->start_of_fat * superblock->block_size);
+	printf("Cursor in method: %d\n", cursor);
 	int end_of_fat = (superblock->start_of_fat + superblock->blocks_in_fat) * block_size; 
 	
 	while (cursor < end_of_fat){
-		memcpy(&current_fat_reading, , 4);
-		
+		memcpy(&current_fat_reading, start_of_file+cursor, 4);
 
+		current_fat_reading = htonl(current_fat_reading);
+		//printf("current reading: %u\n", current_fat_reading);
+
+		//When we find an empty spot return the fat index
+		if (current_fat_reading == 0){
+			//printf("counter: %d\n", counter);
+			return counter;
+		}		
+		//Move the cursor along to the next FAT entry
+
+		cursor = cursor+4;
+
+		counter++;
 	}
-
-//	prep_superblock_struct()
+	
+	//Exit if the FAT is full
+	printf("There were no available spots in the FAT\n");
+	exit(-1);
 	
 
 }
@@ -411,17 +362,24 @@ int main(int argc, char* argv[]){
 
 	//Open the img file with read access only
     char* img_file_name = argv[1];
-	int img_file_descriptor = open(img_file_name, 0);
+	int img_file_descriptor; //= open(img_file_name, 0);
 
 
 	//When the file opening caused an error
-	if (img_file_descriptor < 0 ){
+	/*if (img_file_descriptor < 0 ){
 		printf("The file could not be opened. The file may not exist or you may not have access to it\n");
 		exit(-1);
 	}
-    char* name_of_file_in_os = argv[2];
-    char* path_to_dest_in_img = argv[3];
-	print_directory(img_file_descriptor, name_of_file_in_os, path_to_dest_in_img);
+*/
+    char* path_of_file_in_img = argv[2];
+    char* path_of_source_in_os = argv[3];
+
+	img_file_descriptor = open("test.img", O_RDWR |O_APPEND );
+	path_of_file_in_img = "";
+	path_of_source_in_os = "mkfile.cc";//"foo.txt";
+
+	write_to_img(img_file_descriptor, path_of_file_in_img, path_of_source_in_os);
+	//print_directory(img_file_descriptor, name_of_file_in_os, path_to_dest_in_img);
 	close(img_file_descriptor);
 
 	return 0;
